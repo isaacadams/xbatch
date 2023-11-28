@@ -97,7 +97,7 @@ pub async fn connect<P: AsRef<str>>(path: P) -> Pool<Sqlite> {
 }
 
 pub async fn select_all(table: &str, pool: &Pool<Sqlite>) -> Result<ResultSet, sqlx::Error> {
-    let rows = sqlx::query(&format!("SELECT * FROM {}", table))
+    let rows = sqlx::query(&format!("SELECT ROWID, * FROM {}", table))
         .bind(table)
         .fetch_all(pool)
         .await?;
@@ -125,10 +125,11 @@ impl ResultSet {
         let mut csv = String::new();
 
         self.rows.iter().for_each(|r| {
-            let values: Vec<&str> = r
+            let values: Vec<String> = r
                 .columns()
                 .iter()
-                .map(|c| r.get::<&str, usize>(c.ordinal()))
+                .filter_map(|c| r.try_get_unchecked(c.ordinal()).ok())
+                .map(|v| String::from_utf8_lossy(v).to_string())
                 .collect();
 
             let row = values.join(",");
@@ -143,12 +144,12 @@ impl ResultSet {
         self.rows
             .iter()
             .map(|r| {
-                let values: Vec<&str> = r
+                let values: Vec<String> = r
                     .columns()
                     .iter()
-                    .map(|c| r.get::<&str, usize>(c.ordinal()))
+                    .filter_map(|c| r.try_get_unchecked(c.ordinal()).ok())
+                    .map(|v| String::from_utf8_lossy(v).to_string())
                     .collect();
-
                 values.join(",")
             })
             .collect()
