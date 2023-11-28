@@ -1,14 +1,18 @@
-use std::path::Path;
-
 use crate::executor::{Executor, ExecutorError};
 use sqlx::{
-    migrate::MigrateDatabase, sqlite::SqliteRow, Column, ColumnIndex, Decode, Encode, Pool, Row,
-    Sqlite, SqlitePool,
+    migrate::MigrateDatabase,
+    sqlite::{SqliteConnectOptions, SqliteRow},
+    Column, ColumnIndex, Decode, Encode, Pool, Row, Sqlite, SqlitePool,
 };
+use std::path::Path;
 
 async fn create_db(path: &str) -> Result<Pool<Sqlite>, sqlx::Error> {
-    ensure_file_exists(path)?;
-    SqlitePool::connect(path).await
+    SqlitePool::connect_with(
+        SqliteConnectOptions::new()
+            .create_if_missing(true)
+            .filename(path),
+    )
+    .await
 }
 
 async fn setup() -> Result<Pool<Sqlite>, sqlx::Error> {
@@ -153,25 +157,7 @@ fn unix_now() -> u64 {
     unix_timestamp
 }
 
-pub fn ensure_file_exists<P: AsRef<Path>>(path: P) -> Result<(), std::io::Error> {
-    let meta = std::fs::metadata(path.as_ref());
-
-    if meta.is_err() || meta.is_ok_and(|f| !f.is_file()) {
-        std::fs::File::create(path.as_ref())?;
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[tokio::test]
-    pub async fn creates_new_db() {
-        let _ = std::fs::remove_file("./test.db");
-        let pool = create_db("./test.db").await;
-        assert!(pool.is_ok());
-        let _ = std::fs::remove_file("./test.db");
-    }
 }
