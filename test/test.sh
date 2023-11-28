@@ -1,0 +1,1 @@
+cargo run -- run --db=test/test.db --table=data "C:/source/isaacadams/iter/target/debug/iter.exe" fake

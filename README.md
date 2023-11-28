@@ -1,0 +1,2 @@
+- add command for generating a unique id column
+- add command for validating that a column is unique
