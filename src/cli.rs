@@ -37,6 +37,9 @@ enum Commands {
 
         args: String,
     },
+    Clear {
+        id: u64,
+    },
     Fake,
 }
 
@@ -69,7 +72,7 @@ impl Cli {
                 command.arg(args);
                 let exe = Executor::new(command);
 
-                b.run(exe, rows);
+                b.run(exe, rows).await.unwrap();
             }
             Commands::Fake => {
                 let stdin = std::io::stdin();
@@ -83,6 +86,9 @@ impl Cli {
                     }
                     println!("{}", line);
                 }
+            }
+            Commands::Clear { id } => {
+                batch::clear(id).await.unwrap();
             }
         };
     }
