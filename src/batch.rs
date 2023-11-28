@@ -1,4 +1,4 @@
-use crate::executor::Executor;
+use crate::{executor::Executor, result};
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite, SqlitePool};
 
 async fn create_db(path: &str) -> Result<Pool<Sqlite>, sqlx::Error> {
@@ -35,6 +35,27 @@ pub async fn clear(id: u64) -> Result<(), sqlx::Error> {
     txn.commit().await?;
 
     Ok(())
+}
+
+pub async fn show(id: u64) -> Result<(String, Vec<String>), sqlx::Error> {
+    let pool = setup().await?;
+    let mut txn = pool.begin().await?;
+
+    let header = sqlx::query("SELECT * FROM BATCH WHERE timestamp = ?")
+        .bind(id as i64)
+        .fetch_one(txn.as_mut())
+        .await?;
+
+    let results = sqlx::query("SELECT * FROM RESULT WHERE batch_id = ?")
+        .bind(id as i64)
+        .fetch_all(txn.as_mut())
+        .await?;
+
+    txn.commit().await?;
+
+    let header = result::row_to_string(&header).join(",");
+
+    Ok((header, result::ResultSet::new(results).to_csv_rows()))
 }
 
 async fn create_batch_table(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {

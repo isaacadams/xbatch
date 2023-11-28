@@ -1,6 +1,6 @@
-use crate::{batch, executor::Executor};
+use crate::{batch, executor::Executor, result::ResultSet};
 use clap::{Parser, Subcommand};
-use sqlx::{migrate::MigrateDatabase, sqlite::SqliteRow, Column, Pool, Row, Sqlite, SqlitePool};
+use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool};
 use std::path::PathBuf;
 
 pub async fn run() {
@@ -31,6 +31,9 @@ enum Commands {
         args: String,
     },
     Clear {
+        id: u64,
+    },
+    Show {
         id: u64,
     },
     Fake,
@@ -80,6 +83,14 @@ impl Cli {
             Commands::Clear { id } => {
                 batch::clear(id).await.unwrap();
             }
+            Commands::Show { id } => {
+                let (header, results) = batch::show(id).await.unwrap();
+                println!("\n\nBATCH: {}\n", header);
+                for r in results {
+                    println!("{:#?}", r);
+                }
+                println!("\n\n");
+            }
         };
     }
 }
@@ -102,56 +113,5 @@ pub async fn select_all(table: &str, pool: &Pool<Sqlite>) -> Result<ResultSet, s
         .fetch_all(pool)
         .await?;
 
-    Ok(ResultSet { rows })
-}
-
-pub struct ResultSet {
-    rows: Vec<SqliteRow>,
-}
-
-impl ResultSet {
-    #[allow(dead_code)]
-    pub fn print(&self) {
-        self.rows.iter().for_each(|r| {
-            for c in r.columns() {
-                let value = r.get::<&str, usize>(c.ordinal());
-                dbg!(value);
-            }
-        });
-    }
-
-    #[allow(dead_code)]
-    pub fn to_csv(self) {
-        let mut csv = String::new();
-
-        self.rows.iter().for_each(|r| {
-            let values: Vec<String> = r
-                .columns()
-                .iter()
-                .filter_map(|c| r.try_get_unchecked(c.ordinal()).ok())
-                .map(|v| String::from_utf8_lossy(v).to_string())
-                .collect();
-
-            let row = values.join(",");
-            csv.push_str(&row);
-            csv.push('\n');
-        });
-
-        println!("{}", csv);
-    }
-
-    pub fn to_csv_rows(&self) -> Vec<String> {
-        self.rows
-            .iter()
-            .map(|r| {
-                let values: Vec<String> = r
-                    .columns()
-                    .iter()
-                    .filter_map(|c| r.try_get_unchecked(c.ordinal()).ok())
-                    .map(|v| String::from_utf8_lossy(v).to_string())
-                    .collect();
-                values.join(",")
-            })
-            .collect()
-    }
+    Ok(ResultSet::new(rows))
 }
