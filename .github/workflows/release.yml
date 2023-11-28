@@ -16,7 +16,7 @@ env:
 
 jobs:
   create-binaries:
-    uses: isaacadams/hat/.github/workflows/rust-binaries.yml@main
+    uses: isaacadams/hat/.github/workflows/rust-binaries.yml@bugfix/adding-missing-openssl-deps
     with:
       name: xbatch
       version: ${{ github.ref_name }}
