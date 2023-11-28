@@ -1,10 +1,5 @@
-use crate::executor::{Executor, ExecutorError};
-use sqlx::{
-    migrate::MigrateDatabase,
-    sqlite::{SqliteConnectOptions, SqliteRow},
-    Column, ColumnIndex, Decode, Encode, Pool, Row, Sqlite, SqlitePool,
-};
-use std::path::Path;
+use crate::executor::Executor;
+use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite, SqlitePool};
 
 async fn create_db(path: &str) -> Result<Pool<Sqlite>, sqlx::Error> {
     SqlitePool::connect_with(
@@ -60,8 +55,9 @@ async fn create_result_table(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
         "CREATE TABLE IF NOT EXISTS RESULT (
         [batch_id] INTEGER NOT NULL,
         [input] TEXT NOT NULL,
-        [success] INTEGER,
-        [output] TEXT,
+        [stdout] TEXT,
+        [stderr] TEXT,
+        [exit_code] INTEGER,
         [error] TEXT
     )",
     )
@@ -76,11 +72,15 @@ async fn insert_batch_record(
     arguments: &str,
     pool: &Pool<Sqlite>,
 ) -> Result<(), sqlx::Error> {
-    let _ = sqlx::query("INSERT INTO BATCH(timestamp, arguments) VALUES (?,?);")
-        .bind(timestamp as i64)
-        .bind(arguments)
-        .execute(pool)
-        .await?;
+    let _ = sqlx::query(
+        "INSERT INTO 
+        BATCH(timestamp, arguments) 
+        VALUES (?,?);",
+    )
+    .bind(timestamp as i64)
+    .bind(arguments)
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
@@ -109,32 +109,45 @@ impl Batch {
     pub async fn run(&self, mut exe: Executor, rows: Vec<String>) -> Result<(), sqlx::Error> {
         for row in rows {
             match exe.run(&row) {
-                Ok(out) => self.write_success(&row, out).await,
-                Err(err) => self.write_error(&row, err).await,
+                Ok(output) => {
+                    self.write(
+                        &row,
+                        Some(String::from_utf8_lossy(&output.stdout).as_ref()),
+                        Some(String::from_utf8_lossy(&output.stderr).as_ref()),
+                        output.status.code(),
+                        None,
+                    )
+                    .await
+                }
+                Err(err) => {
+                    self.write(&row, None, None, None, Some(&err.to_string()))
+                        .await
+                }
             }?;
         }
 
         Ok(())
     }
 
-    pub async fn write_error(&self, row: &str, error: ExecutorError) -> Result<(), sqlx::Error> {
-        let _ = sqlx::query("INSERT INTO RESULT ([batch_id],[input],[success],[output],[error]) VALUES (?,?,0,NULL,?)")
-        .bind(self.timestamp as i64)
-        .bind(row)
-        .bind(error.to_string())
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn write_success(&self, row: &str, output: Vec<u8>) -> Result<(), sqlx::Error> {
+    pub async fn write(
+        &self,
+        row: &str,
+        stdout: Option<&str>,
+        stderr: Option<&str>,
+        exit_code: Option<i32>,
+        error: Option<&str>,
+    ) -> Result<(), sqlx::Error> {
         let _ = sqlx::query(
-            "INSERT INTO RESULT ([batch_id],[input],[success],[output],[error]) VALUES (?,?,1,?,NULL)",
+            "INSERT INTO 
+            RESULT ([batch_id],[input],[stdout],[stderr],[exit_code],[error]) 
+            VALUES (?,?,?,?,?,?)",
         )
         .bind(self.timestamp as i64)
         .bind(row)
-        .bind(output)
+        .bind(stdout)
+        .bind(stderr)
+        .bind(exit_code)
+        .bind(error)
         .execute(&self.pool)
         .await?;
 
@@ -155,9 +168,4 @@ fn unix_now() -> u64 {
     // Get the UNIX timestamp as a u64 value
     let unix_timestamp = duration_since_epoch.as_secs();
     unix_timestamp
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
 }

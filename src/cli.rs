@@ -1,14 +1,7 @@
-use clap::{Parser, Subcommand};
-use sqlx::{
-    migrate::MigrateDatabase, sqlite::SqliteRow, Column, ColumnIndex, Decode, Encode, Pool, Row,
-    Sqlite, SqlitePool,
-};
-use std::{
-    io::{Stdout, Write},
-    path::PathBuf,
-};
-
 use crate::{batch, executor::Executor};
+use clap::{Parser, Subcommand};
+use sqlx::{migrate::MigrateDatabase, sqlite::SqliteRow, Column, Pool, Row, Sqlite, SqlitePool};
+use std::path::PathBuf;
 
 pub async fn run() {
     Cli::parse().run().await;
@@ -58,9 +51,6 @@ impl Cli {
                 let result = select_all(&table, &db).await.unwrap();
 
                 let rows: Vec<String> = result.to_csv_rows();
-
-                dbg!(&rows);
-                dbg!(&command);
 
                 let Some(b) = batch::new().await else {
                     return;
@@ -120,6 +110,7 @@ pub struct ResultSet {
 }
 
 impl ResultSet {
+    #[allow(dead_code)]
     pub fn print(&self) {
         self.rows.iter().for_each(|r| {
             for c in r.columns() {
@@ -129,6 +120,7 @@ impl ResultSet {
         });
     }
 
+    #[allow(dead_code)]
     pub fn to_csv(self) {
         let mut csv = String::new();
 
