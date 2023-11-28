@@ -1,0 +1,52 @@
+name: release
+
+permissions: write-all
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  RUSTFLAGS: -D warnings
+  # https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
+  RELEASE_VERSION: ${{ github.ref_name }}
+
+jobs:
+  create-binaries:
+    uses: isaacadams/hat/.github/workflows/rust-binaries.yml@main
+    with:
+      name: xbatch
+      version: ${{ github.ref_name }}
+
+  create-release:
+    name: create-release
+    needs: create-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: setup
+        run: mkdir bin
+
+      # download artifacts from rust-binaries
+      - uses: actions/download-artifact@v3
+        with:
+          path: bin
+
+      # displays the files
+      - name: check
+        run: ls -R
+        working-directory: bin
+
+      # add release to github
+      - name: release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./**/*.zip
+            ./**/*.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+          generate_release_notes: true
+          name: ${{ env.RELEASE_VERSION }}
+          tag_name: ${{ env.RELEASE_VERSION }}
