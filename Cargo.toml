@@ -26,3 +26,13 @@ tokio = { version = "1.34.0", features = ["rt-multi-thread", "macros"]}
 
 [target.'cfg(target_os = "linux")'.dependencies]
 openssl-sys = { version = "0.9.96", features = ["vendored"]}
+
+[package.metadata.cross]
+[target.aarch64-unknown-linux-gnu]
+pre-build = ["apt-get update && apt-get install -y --no-install-recommends pkg-config make g++ libssl-dev"]
+[target.x86_64-unknown-linux-musl]
+pre-build = ["apt-get update && apt-get install -y --no-install-recommends pkg-config make g++ libssl-dev"]
+[target.aarch64-unknown-linux-musl]
+pre-build = ["apt-get update && apt-get install -y --no-install-recommends pkg-config make g++ libssl-dev"]
+[target.x86_64-unknown-linux-gnu]
+pre-build = ["apt-get update && apt-get install -y --no-install-recommends pkg-config make g++ libssl-dev"]
