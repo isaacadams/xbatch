@@ -1,2 +1,6 @@
-- add command for generating a unique id column
-- add command for validating that a column is unique
+# Example
+
+```bash
+bash test/load.sh
+bash test/test.sh
+```

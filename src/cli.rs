@@ -3,13 +3,17 @@ use clap::{Parser, Subcommand};
 use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool};
 use std::path::PathBuf;
 
+/**
+ - add command for generating a unique id column
+ - add command for validating that a column is unique
+*/
 pub async fn run() {
     Cli::parse().run().await;
 }
 
 #[derive(Debug, Parser)]
-#[command(name = "iter")]
-#[command(about = "", long_about = None)]
+#[command(name = "xbatch")]
+#[command(about = "monitors the stdout and stderr of your script for each run", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -17,7 +21,7 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    Run {
+    Monitor {
         /// Path to sqlite file
         #[arg(short, long)]
         db: PathBuf,
@@ -44,7 +48,7 @@ impl Cli {
         let command = self.command;
 
         match command {
-            Commands::Run {
+            Commands::Monitor {
                 db,
                 table,
                 command,

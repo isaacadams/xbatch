@@ -1,26 +1,25 @@
 [package]
-name = "iter"
+name = "xbatch"
 version = "0.1.0"
 edition = "2021"
 authors = ["Isaac Adams <isaac.d.adams@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = """
-homepage: https://github.com/isaacadams/iter
+monitors the stdout and stderr of your script for each run
+
+homepage: https://github.com/isaacadams/xbatch
 """
-homepage = "https://github.com/isaacadams/iter"
-repository = "https://github.com/isaacadams/iter"
+homepage = "https://github.com/isaacadams/xbatch"
+repository = "https://github.com/isaacadams/xbatch"
 keywords = ["cli"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [[bin]]
-name = "iter"
+name = "xbatch"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0.75"
 clap = { version = "4.4.8", features = ["derive"] }
-serde = {version = "1.0.192", features = ["serde_derive"]}
-serde_json = "1.0.108"
 sqlx = { version = "0.7.3", features = ["runtime-tokio-native-tls", "sqlite"]}
 thiserror = "1.0.50"
 tokio = { version = "1.34.0", features = ["rt-multi-thread", "macros"]}
