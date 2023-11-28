@@ -134,7 +134,6 @@ pub async fn stream_rows(table: &str, pool: &Pool<Sqlite>) -> Result<(), sqlx::E
             sqlx::Either::Right(y) => {
                 let row = result::row_to_string(&y);
                 println!("{}", row.join(","));
-                std::thread::sleep(std::time::Duration::from_millis(2_000));
             }
         }
     }
