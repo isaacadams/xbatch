@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Write},
+    io::{self, Stdout, Write},
     process::{Command, ExitStatus, Output, Stdio},
 };
 use thiserror::Error;
@@ -46,6 +46,8 @@ impl Executor {
         let mut child = self
             .command
             .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| IOError::ChildProcess(e))?;
 
@@ -54,6 +56,8 @@ impl Executor {
             stdin
                 .write_all(row.as_bytes())
                 .map_err(|e| IOError::WriteToStdin(e))?;
+
+            stdin.flush().map_err(|e| IOError::WriteToStdin(e))?;
         }
 
         let output = child

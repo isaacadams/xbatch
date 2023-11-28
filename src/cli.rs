@@ -5,7 +5,6 @@ use sqlx::{
 };
 use std::{
     io::{Stdout, Write},
-    os::windows::io::AsHandle,
     path::PathBuf,
 };
 
@@ -75,7 +74,14 @@ impl Cli {
             Commands::Fake => {
                 let stdin = std::io::stdin();
                 for line in stdin.lines() {
-                    dbg!(line);
+                    let line = line.unwrap();
+                    let inputs = line.split(",");
+                    for value in inputs {
+                        if value == "amazon" {
+                            panic!("I am scared of amazon.");
+                        }
+                    }
+                    println!("{}", line);
                 }
             }
         };
