@@ -1,4 +1,8 @@
-use crate::{batch, executor::Executor, result::ResultSet};
+use crate::{
+    batch,
+    executor::Executor,
+    result::{self, ResultSet},
+};
 use clap::{Parser, Subcommand};
 use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool};
 use std::path::PathBuf;
@@ -22,6 +26,10 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     Monitor {
+        program: String,
+        args: String,
+    },
+    Stream {
         /// Path to sqlite file
         #[arg(short, long)]
         db: PathBuf,
@@ -29,10 +37,6 @@ enum Commands {
         /// table name to iterate through
         #[arg(short, long)]
         table: String,
-
-        command: String,
-
-        args: String,
     },
     Clear {
         id: u64,
@@ -48,28 +52,21 @@ impl Cli {
         let command = self.command;
 
         match command {
-            Commands::Monitor {
-                db,
-                table,
-                command,
-                args,
-            } => {
-                let db = connect(db.to_str().unwrap()).await;
-                let result = select_all(&table, &db).await.unwrap();
+            Commands::Monitor { program, args } => {
+                let mut command = std::process::Command::new(&program);
+                command.arg(&args);
+                let exe = Executor::new(command);
 
-                let rows: Vec<String> = result.to_csv_rows();
-
-                let Some(b) = batch::new().await else {
+                let Some(mut b) = batch::new(exe).await else {
                     return;
                 };
 
-                b.record(&format!("{} {}", &command, &args)).await.unwrap();
+                b.record(&format!("{} {}", &program, &args)).await.unwrap();
 
-                let mut command = std::process::Command::new(command);
-                command.arg(args);
-                let exe = Executor::new(command);
-
-                b.run(exe, rows).await.unwrap();
+                for line in std::io::stdin().lines() {
+                    let line = line.unwrap();
+                    b.run(line).await.unwrap();
+                }
             }
             Commands::Fake => {
                 let stdin = std::io::stdin();
@@ -95,6 +92,10 @@ impl Cli {
                 }
                 println!("\n\n");
             }
+            Commands::Stream { db, table } => {
+                let db = connect(db.to_str().unwrap()).await;
+                stream_rows(&table, &db).await.unwrap();
+            }
         };
     }
 }
@@ -111,6 +112,7 @@ pub async fn connect<P: AsRef<str>>(path: P) -> Pool<Sqlite> {
     pool
 }
 
+#[allow(dead_code)]
 pub async fn select_all(table: &str, pool: &Pool<Sqlite>) -> Result<ResultSet, sqlx::Error> {
     let rows = sqlx::query(&format!("SELECT ROWID, * FROM {}", table))
         .bind(table)
@@ -118,4 +120,24 @@ pub async fn select_all(table: &str, pool: &Pool<Sqlite>) -> Result<ResultSet, s
         .await?;
 
     Ok(ResultSet::new(rows))
+}
+
+pub async fn stream_rows(table: &str, pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
+    use tokio_stream::StreamExt;
+
+    let query = format!("SELECT ROWID, * FROM {}", table);
+    let mut cursor = sqlx::query(&query).bind(table).fetch_many(pool);
+
+    while let Some(row) = cursor.try_next().await? {
+        match row {
+            sqlx::Either::Left(_) => (),
+            sqlx::Either::Right(y) => {
+                let row = result::row_to_string(&y);
+                println!("{}", row.join(","));
+                std::thread::sleep(std::time::Duration::from_millis(2_000));
+            }
+        }
+    }
+
+    Ok(())
 }

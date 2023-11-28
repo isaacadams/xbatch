@@ -106,46 +106,49 @@ async fn insert_batch_record(
     Ok(())
 }
 
-pub async fn new() -> Option<Batch> {
+pub async fn new(exe: Executor) -> Option<Batch> {
     let pool = setup().await.ok()?;
-    Some(Batch::new(pool))
+    Some(Batch::new(exe, pool))
 }
 
 pub struct Batch {
     timestamp: u64,
+    exe: Executor,
     pool: Pool<Sqlite>,
 }
 
 impl Batch {
-    fn new(pool: Pool<Sqlite>) -> Self {
+    fn new(exe: Executor, pool: Pool<Sqlite>) -> Self {
         let timestamp = unix_now();
 
-        Self { timestamp, pool }
+        Self {
+            timestamp,
+            exe,
+            pool,
+        }
     }
 
     pub async fn record(&self, arguments: &str) -> Result<(), sqlx::Error> {
         insert_batch_record(self.timestamp, arguments, &self.pool).await
     }
 
-    pub async fn run(&self, mut exe: Executor, rows: Vec<String>) -> Result<(), sqlx::Error> {
-        for row in rows {
-            match exe.run(&row) {
-                Ok(output) => {
-                    self.write(
-                        &row,
-                        Some(String::from_utf8_lossy(&output.stdout).as_ref()),
-                        Some(String::from_utf8_lossy(&output.stderr).as_ref()),
-                        output.status.code(),
-                        None,
-                    )
+    pub async fn run(&mut self, row: String) -> Result<(), sqlx::Error> {
+        match self.exe.run(&row) {
+            Ok(output) => {
+                self.write(
+                    &row,
+                    Some(String::from_utf8_lossy(&output.stdout).as_ref()),
+                    Some(String::from_utf8_lossy(&output.stderr).as_ref()),
+                    output.status.code(),
+                    None,
+                )
+                .await
+            }
+            Err(err) => {
+                self.write(&row, None, None, None, Some(&format!("{}", err)))
                     .await
-                }
-                Err(err) => {
-                    self.write(&row, None, None, None, Some(&err.to_string()))
-                        .await
-                }
-            }?;
-        }
+            }
+        }?;
 
         Ok(())
     }

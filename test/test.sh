@@ -1,1 +1,3 @@
-cargo run -- run --db=test/test.db --table=data "C:/source/isaacadams/iter/target/debug/iter.exe" fake
+
+cargo run -- stream --db=test/test.db --table=data | \
+cargo run -- monitor "C:/source/isaacadams/xbatch/target/debug/xbatch.exe" fake

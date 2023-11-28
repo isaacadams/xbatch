@@ -6,12 +6,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ExecutorError {
-    #[error("io: {0:?}")]
-    IO(#[from] IOError),
-}
-
-#[derive(Error, Debug)]
-pub enum IOError {
     #[error("failed to create child process: {0:?}")]
     ChildProcess(io::Error),
     #[error("failed to write to stdin: {0:?}")]
@@ -36,20 +30,20 @@ impl Executor {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| IOError::ChildProcess(e))?;
+            .map_err(|e| ExecutorError::ChildProcess(e))?;
 
         // Write the row data to the stdin of the child process
         if let Some(mut stdin) = child.stdin.take() {
             stdin
                 .write_all(row.as_bytes())
-                .map_err(|e| IOError::WriteToStdin(e))?;
+                .map_err(|e| ExecutorError::WriteToStdin(e))?;
 
-            stdin.flush().map_err(|e| IOError::WriteToStdin(e))?;
+            stdin.flush().map_err(|e| ExecutorError::WriteToStdin(e))?;
         }
 
         let output = child
             .wait_with_output()
-            .map_err(|e| IOError::WaitForOutput(e))?;
+            .map_err(|e| ExecutorError::WaitForOutput(e))?;
 
         Ok(output)
     }
