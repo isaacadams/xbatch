@@ -1,14 +1,7 @@
+use crate::{batch, executor::Executor, result::ResultSet};
 use clap::{Parser, Subcommand};
-use sqlx::{
-    migrate::MigrateDatabase, sqlite::SqliteRow, Column, ColumnIndex, Decode, Encode, Pool, Row,
-    Sqlite, SqlitePool,
-};
-use std::{
-    io::{Stdout, Write},
-    path::PathBuf,
-};
-
-use crate::{batch, executor::Executor};
+use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool};
+use std::path::PathBuf;
 
 pub async fn run() {
     Cli::parse().run().await;
@@ -37,6 +30,12 @@ enum Commands {
 
         args: String,
     },
+    Clear {
+        id: u64,
+    },
+    Show {
+        id: u64,
+    },
     Fake,
 }
 
@@ -56,9 +55,6 @@ impl Cli {
 
                 let rows: Vec<String> = result.to_csv_rows();
 
-                dbg!(&rows);
-                dbg!(&command);
-
                 let Some(b) = batch::new().await else {
                     return;
                 };
@@ -69,7 +65,7 @@ impl Cli {
                 command.arg(args);
                 let exe = Executor::new(command);
 
-                b.run(exe, rows);
+                b.run(exe, rows).await.unwrap();
             }
             Commands::Fake => {
                 let stdin = std::io::stdin();
@@ -83,6 +79,17 @@ impl Cli {
                     }
                     println!("{}", line);
                 }
+            }
+            Commands::Clear { id } => {
+                batch::clear(id).await.unwrap();
+            }
+            Commands::Show { id } => {
+                let (header, results) = batch::show(id).await.unwrap();
+                println!("\n\nBATCH: {}\n", header);
+                for r in results {
+                    println!("{:#?}", r);
+                }
+                println!("\n\n");
             }
         };
     }
@@ -101,58 +108,10 @@ pub async fn connect<P: AsRef<str>>(path: P) -> Pool<Sqlite> {
 }
 
 pub async fn select_all(table: &str, pool: &Pool<Sqlite>) -> Result<ResultSet, sqlx::Error> {
-    let rows = sqlx::query(&format!("SELECT * FROM {}", table))
+    let rows = sqlx::query(&format!("SELECT ROWID, * FROM {}", table))
         .bind(table)
         .fetch_all(pool)
         .await?;
 
-    Ok(ResultSet { rows })
-}
-
-pub struct ResultSet {
-    rows: Vec<SqliteRow>,
-}
-
-impl ResultSet {
-    pub fn print(&self) {
-        self.rows.iter().for_each(|r| {
-            for c in r.columns() {
-                let value = r.get::<&str, usize>(c.ordinal());
-                dbg!(value);
-            }
-        });
-    }
-
-    pub fn to_csv(self) {
-        let mut csv = String::new();
-
-        self.rows.iter().for_each(|r| {
-            let values: Vec<&str> = r
-                .columns()
-                .iter()
-                .map(|c| r.get::<&str, usize>(c.ordinal()))
-                .collect();
-
-            let row = values.join(",");
-            csv.push_str(&row);
-            csv.push('\n');
-        });
-
-        println!("{}", csv);
-    }
-
-    pub fn to_csv_rows(&self) -> Vec<String> {
-        self.rows
-            .iter()
-            .map(|r| {
-                let values: Vec<&str> = r
-                    .columns()
-                    .iter()
-                    .map(|c| r.get::<&str, usize>(c.ordinal()))
-                    .collect();
-
-                values.join(",")
-            })
-            .collect()
-    }
+    Ok(ResultSet::new(rows))
 }

@@ -1,26 +1,13 @@
 use std::{
-    io::{self, Stdout, Write},
-    process::{Command, ExitStatus, Output, Stdio},
+    io::{self, Write},
+    process::{Command, Output, Stdio},
 };
 use thiserror::Error;
-
-/* pub enum DataStoreError {
-    #[error("data store disconnected")]
-    Disconnect(#[from] io::Error),
-    #[error("the data for key `{0}` is not available")]
-    Redaction(String),
-    #[error("invalid header (expected {expected:?}, found {found:?})")]
-    InvalidHeader { expected: String, found: String },
-    #[error("unknown data store error")]
-    Unknown,
-} */
 
 #[derive(Error, Debug)]
 pub enum ExecutorError {
     #[error("io: {0:?}")]
     IO(#[from] IOError),
-    #[error("ExitCode {code:?}: {error}")]
-    StdError { error: String, code: Option<i32> },
 }
 
 #[derive(Error, Debug)]
@@ -42,7 +29,7 @@ impl Executor {
         Self { command }
     }
 
-    pub fn run(&mut self, row: &str) -> Result<Vec<u8>, ExecutorError> {
+    pub fn run(&mut self, row: &str) -> Result<Output, ExecutorError> {
         let mut child = self
             .command
             .stdin(Stdio::piped())
@@ -64,18 +51,6 @@ impl Executor {
             .wait_with_output()
             .map_err(|e| IOError::WaitForOutput(e))?;
 
-        dbg!(&output);
-
-        match output.status.code() {
-            Some(0) => Ok(output.stdout),
-            Some(code) => Err(ExecutorError::StdError {
-                error: format!("{:?} + {:?}", output.stderr, output.stdout),
-                code: Some(code),
-            }),
-            None => Err(ExecutorError::StdError {
-                error: format!("{:?} + {:?}", output.stderr, output.stdout),
-                code: None,
-            }),
-        }
+        Ok(output)
     }
 }
