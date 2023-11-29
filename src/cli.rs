@@ -54,7 +54,8 @@ impl Cli {
         match command {
             Commands::Monitor { program, args } => {
                 let mut command = std::process::Command::new(&program);
-                command.arg(&args);
+                let arguments: &Vec<&str> = &args.split(" ").collect();
+                command.args(arguments);
                 let exe = Executor::new(command);
 
                 let Some(mut b) = batch::new(exe).await else {
