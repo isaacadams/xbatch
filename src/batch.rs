@@ -106,9 +106,9 @@ async fn insert_batch_record(
     Ok(())
 }
 
-pub async fn new(exe: Executor) -> Option<Batch> {
+pub async fn new(id: Option<u64>, exe: Executor) -> Option<Batch> {
     let pool = setup().await.ok()?;
-    Some(Batch::new(exe, pool))
+    Some(Batch::new(id, exe, pool))
 }
 
 pub struct Batch {
@@ -118,14 +118,18 @@ pub struct Batch {
 }
 
 impl Batch {
-    fn new(exe: Executor, pool: Pool<Sqlite>) -> Self {
-        let timestamp = unix_now();
+    fn new(id: Option<u64>, exe: Executor, pool: Pool<Sqlite>) -> Self {
+        let timestamp = id.unwrap_or(unix_now());
 
         Self {
             timestamp,
             exe,
             pool,
         }
+    }
+
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
     }
 
     pub async fn record(&self, arguments: &str) -> Result<(), sqlx::Error> {

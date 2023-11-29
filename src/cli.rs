@@ -25,7 +25,12 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    New {
+        program: String,
+        args: String,
+    },
     Monitor {
+        id: u64,
         program: String,
         args: String,
     },
@@ -52,17 +57,29 @@ impl Cli {
         let command = self.command;
 
         match command {
-            Commands::Monitor { program, args } => {
+            Commands::New { program, args } => {
                 let mut command = std::process::Command::new(&program);
                 let arguments: &Vec<&str> = &args.split(" ").collect();
                 command.args(arguments);
                 let exe = Executor::new(command);
 
-                let Some(mut b) = batch::new(exe).await else {
+                let Some(b) = batch::new(None, exe).await else {
                     return;
                 };
 
                 b.record(&format!("{} {}", &program, &args)).await.unwrap();
+
+                println!("{}", b.timestamp());
+            }
+            Commands::Monitor { id, program, args } => {
+                let mut command = std::process::Command::new(&program);
+                let arguments: &Vec<&str> = &args.split(" ").collect();
+                command.args(arguments);
+                let exe = Executor::new(command);
+
+                let Some(mut b) = batch::new(Some(id), exe).await else {
+                    return;
+                };
 
                 for line in std::io::stdin().lines() {
                     let line = line.unwrap();
