@@ -80,13 +80,53 @@ impl Cli {
 
                 let exe = Executor::new(command);
 
-                let Some(mut b) = batch::new(Some(id), exe).await else {
+                let Some(b) = batch::new(Some(id), exe).await else {
                     return;
                 };
 
-                for line in std::io::stdin().lines() {
-                    let line = line.unwrap();
-                    b.run(line).await.unwrap();
+                let b = Arc::new(Mutex::new(b));
+
+                // Create a channel to send lines between threads
+                use std::sync::Arc;
+                use tokio::io::AsyncBufReadExt;
+                use tokio::sync::{mpsc, Mutex};
+
+                let (tx, rx) = mpsc::channel::<String>(4);
+                let rx = Arc::new(Mutex::new(rx));
+
+                // Spawn a task to read lines from stdin and send them through the channel
+                let reader_handle = tokio::spawn(async move {
+                    let stdin = tokio::io::stdin();
+                    let mut lines = tokio::io::BufReader::new(stdin).lines();
+
+                    while let Some(line) = lines.next_line().await.unwrap() {
+                        if tx.send(line).await.is_err() {
+                            // The receiver was dropped, exit the loop
+                            break;
+                        }
+                    }
+                });
+
+                // Spawn tasks to process lines concurrently
+                let worker_handles: Vec<_> = (0..4)
+                    .map(|_| {
+                        let rx = Arc::clone(&rx);
+                        let b = Arc::clone(&b);
+                        tokio::spawn(async move {
+                            while let Some(line) = rx.lock().await.recv().await {
+                                // Process the line
+                                b.lock().await.run(line).await.unwrap();
+                            }
+                        })
+                    })
+                    .collect();
+
+                // Wait for the reader task to complete
+                reader_handle.await.unwrap();
+
+                // Wait for all worker tasks to complete
+                for handle in worker_handles {
+                    handle.await.unwrap();
                 }
             }
             Commands::Fake => {
