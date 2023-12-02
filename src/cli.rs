@@ -75,6 +75,9 @@ impl Cli {
                 let mut command = std::process::Command::new(&program);
                 let arguments: &Vec<&str> = &args.split(" ").collect();
                 command.args(arguments);
+
+                log::info!("running {:?}", command);
+
                 let exe = Executor::new(command);
 
                 let Some(mut b) = batch::new(Some(id), exe).await else {
